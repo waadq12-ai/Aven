@@ -1,98 +1,93 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    ActionRowBuilder, 
+    StringSelectMenuBuilder, 
+    EmbedBuilder, 
+    ChannelType, 
+    PermissionFlagsBits,
+    ButtonBuilder,
+    ButtonStyle 
+} = require('discord.js');
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.MessageContent
     ]
 });
 
-// روم إرسال لوحة التذاكر (نفس الروم اللي أعطيتني آيديه)
+// الأيدي الخاص بالقناة المطلوبة لإرسال قائمة التذاكر الدائمة
 const TICKET_CHANNEL_ID = '1552240348280000594';
 
-client.on('ready', async () => {
-    console.log(`Logged in as ${client.user.tag} and ready for tickets!`);
+client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}!`);
 
     try {
         const channel = await client.channels.fetch(TICKET_CHANNEL_ID);
         if (!channel) return;
 
-        // التحقق إذا كانت اللوحة مرسلة من قبل عشان ما تتكرر
+        // التحقق من الرسائل السابقة لمنع تكرار القائمة
         const messages = await channel.messages.fetch({ limit: 10 });
-        const existingMessage = messages.find(m => m.author.id === client.user.id);
+        const existingMessage = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
 
         if (!existingMessage) {
             const embed = new EmbedBuilder()
-                .setTitle('⚙️ · Aven Core — مركز الدعم والخدمات')
-                .setDescription('أهلاً بك في نظام الإدارة والدعم الفني لسيرفر **Aven**.\n\nيرجى اختيار القسم المناسب من القائمة بالأسفل لفتح طلبك، وسيتولى فريق العمل خدمتك في أقرب وقت.')
-                .setColor('#2F3136');
+                .setTitle('نظام التذاكر')
+                .setDescription('اختر نوع التذاكر المناسب لك من القائمة أدناه لفتح تذكرة خاصة:')
+                .setColor(0x5865F2);
 
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId('ticket_menu')
-                .setPlaceholder('⚙️ · اختر القسم المناسب لطلبك...')
-                .addOptions([
-                    { label: 'مساعدة عامة', description: 'للاستفسارات العامة والمساعدة في السيرفر', value: 'general_support', emoji: '🛟' },
-                    { label: 'بلاغ أو شكوى', description: 'للإبلاغ عن مشكلة أو مخالفة عضو', value: 'report_support', emoji: '⚠️' },
-                    { label: 'اقتراحات وتطوير', description: 'لتقديم أفكار ومقترحات لتحسين السيرفر', value: 'suggestions_support', emoji: '💡' },
-                    { label: 'تقديم الإدارة', description: 'لتقديم طلب انضمام لفريق الإدارة والاشراف', value: 'staff_application', emoji: '🛡️' }
-                ]);
+            const row = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('ticket_select')
+                    .setPlaceholder('اختر قسم التذكرة...')
+                    .addOptions([
+                        {
+                            label: 'الدعم الفني',
+                            description: 'لحل المشاكل التقنية والاستفسارات',
+                            value: 'support_ticket',
+                            emoji: '🛠️'
+                        },
+                        {
+                            label: 'الشكاوى',
+                            description: 'لتقديم شكوى أو الإبلاغ عن مشكلة',
+                            value: 'complaint_ticket',
+                            emoji: '⚠️'
+                        }
+                    ])
+            );
 
-            const row = new ActionRowBuilder().addComponents(selectMenu);
             await channel.send({ embeds: [embed], components: [row] });
-            console.log('Ticket panel sent successfully!');
         }
     } catch (error) {
-        console.error('Error sending ticket panel:', error);
+        console.error('خطأ أثناء إرسال قائمة التذاكر:', error);
     }
 });
 
-// التعامل مع اختيار العضو من القائمة وإنشاء روم خاص له أو إشعار الإدارة في نفس الروم
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isStringSelectMenu()) return;
-    if (interaction.customId === 'ticket_menu') {
-        const selectedValue = interaction.values[0];
-        const member = interaction.member;
+    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
+        const ticketType = interaction.values[0];
         const guild = interaction.guild;
+        const member = interaction.member;
 
         await interaction.deferReply({ ephemeral: true });
 
-        // خريطة أسماء الأقسام بالعربي عشان تطلع واضحة للمستخدم
-        const categoryNames = {
-            general_support: 'مساعدة عامة',
-            report_support: 'بلاغ أو شكوى',
-            suggestions_support: 'اقتراحات وتطوير',
-            staff_application: 'تقديم الإدارة'
-        };
-
-        const chosenCategory = categoryNames[selectedValue] || 'طلب جديد';
-
         try {
-            // إنشاء روم خاص (تذكرة) للعضو بشكل أوتوماتيكي
             const ticketChannel = await guild.channels.create({
-                name: `ticket-${member.user.username}`,
-                type: 0, // قناة نصية
-                parent: null, // تقدري تحطين آيدي الفئة (Category ID) هنا لو تبينها تنزل تحت قسم معين
+                name: `t-${member.user.username}`,
+                type: ChannelType.GuildText,
                 permissionOverwrites: [
                     {
                         id: guild.id,
-                        deny: ['ViewChannel'], // منع الجميع من رؤية التذكرة
+                        denied: [PermissionFlagsBits.ViewChannel],
                     },
                     {
                         id: member.id,
-                        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'], // السماح لصاحب التذكرة
+                        allowed: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
                     },
-                    {
-                        id: client.user.id,
-                        allow: ['ViewChannel', 'SendMessages', 'ManageChannels'], // السماح للبوت
-                    }
-                ]
+                ],
             });
-
-            const ticketEmbed = new EmbedBuilder()
-                .setTitle(`⚙️ · تذكرة جديدة: ${chosenCategory}`)
-                .setDescription(`أهلاً بك <@${member.id}>.\nتم فتح تذكرتك بنجاح في قسم **${chosenCategory}**.\n\nيرجى كتابة تفاصيل مشكلتك أو طلبك هنا، وسيقوم فريق العمل بالرد عليك قريباً.`)
-                .setColor('#2F3136');
 
             const closeButton = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -102,26 +97,28 @@ client.on('interactionCreate', async interaction => {
                     .setEmoji('🔒')
             );
 
-            await ticketChannel.send({
-                content: `<@${member.id}> | <@&آيدي_روم_أو_رتبة_الإدارة>`, // تقدرين تحطين رتبة الإدارة هنا عشان يوصلهم تنبيه
-                embeds: [ticketEmbed],
-                components: [closeButton]
-            });
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle('تذكرة جديدة')
+                .setDescription(`مرحباً بك ${member}، تم فتح التذكرة بنجاح. سيتم خدمتك في أقرب وقت.`);
 
-            await interaction.editReply({ content: `تم إنشاء تذكرتك بنجاح! توجه إلى هنا: ${ticketChannel}`, ephemeral: true });
+            await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeButton] });
+            await interaction.editReply({ content: `تم إنشاء تذكرتك بنجاح: ${ticketChannel}` });
         } catch (error) {
-            console.error(error);
-            await interaction.editReply({ content: 'حدث خطأ أثناء إنشاء التذكرة، تأكد من صلاحيات البوت.', ephemeral: true });
+            console.error('خطأ أثناء إنشاء قناة التذكرة:', error);
+            await interaction.editReply({ content: 'حدث خطأ أثناء إنشاء التذكرة، حاول مرة أخرى.' });
         }
     }
 
-    // زر إغلاق التذكرة
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
-        await interaction.reply({ content: 'جاري إغلاق وحذف التذكرة خلال 3 ثوانٍ...', ephemeral: true });
+        await interaction.reply({ content: 'جاري إغلاق التذكرة وحذف القناة...', ephemeral: true });
         setTimeout(async () => {
-            await interaction.channel.delete().catch(() => {});
+            try {
+                await interaction.channel.delete();
+            } catch (error) {
+                console.error('خطأ أثناء حذف القناة:', error);
+            }
         }, 3000);
     }
 });
 
-client.login('YOUR_BOT_TOKEN');
+client.login(process.env.TOKEN);
