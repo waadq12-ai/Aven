@@ -18,8 +18,11 @@ const client = new Client({
     ]
 });
 
-// الأيدي الخاص بالقناة المطلوبة لإرسال قائمة التذاكر الدائمة
+// الأيدي الخاص بقناة إرسال قائمة التذاكر
 const TICKET_CHANNEL_ID = '1552240348280000594';
+
+// أيدي الكتيجوري (help+) المخصص لتنفتح تحته التذاكر المفتوحة والمغلقة
+const TICKET_CATEGORY_ID = '1552219561468891238';
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -28,17 +31,16 @@ client.once('ready', async () => {
         const channel = await client.channels.fetch(TICKET_CHANNEL_ID);
         if (!channel) return;
 
-        // جلب آخر الرسائل في القناة وتنظيف الرسائل القديمة للبوت عشان يرسل الشكل الجديد النظيف
+        // تنظيف الرسائل القديمة للبوت عشان ما تتكرر القائمة وتظهر الرسالة الجديدة الفخمة
         const messages = await channel.messages.fetch({ limit: 10 });
         const botMessages = messages.filter(m => m.author.id === client.user.id);
         
-        // حذف رسائل البوت القديمة عشان ما يصير فيه ازدحام وتظهر القائمة الجديدة فقط
         for (const msg of botMessages.values()) {
             await msg.delete().catch(() => {});
         }
 
         const embed = new EmbedBuilder()
-            .setColor(0x2b2d31) // لون ديسكورد الداكن الاحترافي
+            .setColor(0x2b2d31)
             .setTitle('🌟 | مركز الخدمة والدعم الرسمي')
             .setDescription(
                 'مرحباً بك في سيرفرنا!\n\n' +
@@ -51,10 +53,6 @@ client.once('ready', async () => {
                 { name: '🛡️ | تقديم الإشراف', value: 'الانضمام لفريق الإدارة.', inline: true },
                 { name: '💡 | الاقتراحات', value: 'طرح أفكار لتطوير السيرفر.', inline: true }
             )
-            // إذا حابة تضيفين صورة مصغرة، حطي رابطها هنا بين القوسين:
-            // .setThumbnail('رابط_الصورة')
-            // إذا حابة تضيفين بنر كبير، حطي رابطها هنا:
-            // .setImage('رابط_البنر')
             .setFooter({ text: 'نظام التذاكر المطور • جميع الحقوق محفوظة', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
@@ -91,8 +89,9 @@ client.once('ready', async () => {
         );
 
         await channel.send({ embeds: [embed], components: [row] });
+        console.log('✅ تم إرسال قائمة التذاكر بنجاح في القناة المحددة.');
     } catch (error) {
-        console.error('خطأ أثناء إرسال قائمة التذاكر:', error);
+        console.error('❌ خطأ أثناء إرسال قائمة التذاكر:', error);
     }
 });
 
@@ -104,27 +103,24 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.deferReply({ ephemeral: true });
 
-        let channelName = 't';
         let welcomeDescription = '';
 
         if (ticketType === 'support_ticket') {
-            channelName = `support-${member.user.username}`;
             welcomeDescription = `أهلاً بك يا ${member} في قسم **الدعم الفني**.\n\nيرجى شرح مشكلتك أو استفسارك بكل تفصيل لكي يتمكن الفريق من خدمتك بالشكل المطلوب.`;
         } else if (ticketType === 'complaint_ticket') {
-            channelName = `complaint-${member.user.username}`;
             welcomeDescription = `أهلاً بك يا ${member} في قسم **الشكاوى والبلاغات**.\n\nيرجى كتابة تفاصيل الشكوى مع إرفاق الأدلة (صور أو روابط) إن وجدت، وستتم معالجة طلبك بسرية تامة.`;
         } else if (ticketType === 'staff_ticket') {
-            channelName = `staff-${member.user.username}`;
             welcomeDescription = `أهلاً بك يا ${member} في **تقديم الإشراف**.\n\nيرجى تعبئة النموذج التالي وإرساله هنا:\n• العمر:\n• الخبرة الإدارية السابقة:\n• لماذا ترغب بالانضمام إلينا؟:`;
         } else if (ticketType === 'suggestion_ticket') {
-            channelName = `suggestion-${member.user.username}`;
             welcomeDescription = `أهلاً بك يا ${member} في قسم **الاقتراحات**.\n\nنحن نسعى دائماً للأفضل، تفضل بكتابة اقتراحك وسنأخذه بعين الاعتبار!`;
         }
 
         try {
+            // إنشاء القناة باسم t-username وتحت كتيجوري help+ مباشرة
             const ticketChannel = await guild.channels.create({
-                name: channelName,
+                name: `t-${member.user.username}`,
                 type: ChannelType.GuildText,
+                parent: TICKET_CATEGORY_ID,
                 permissionOverwrites: [
                     {
                         id: guild.id,
@@ -156,21 +152,40 @@ client.on('interactionCreate', async interaction => {
             await interaction.editReply({ content: `✅ تم إنشاء تذكرتك بنجاح: ${ticketChannel}` });
         } catch (error) {
             console.error('خطأ أثناء إنشاء قناة التذكرة:', error);
-            await interaction.editReply({ content: '❌ حدث خطأ أثناء إنشاء التذكرة، حاول مرة أخرى.' });
+            await interaction.editReply({ content: '❌ حدث خطأ أثناء إنشاء التذكرة، تأكد من صلاحيات البوت.' });
         }
     }
 
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
-        await interaction.reply({ content: '🔒 جاري إغلاق التذكرة وحذف القناة...', ephemeral: true });
-        setTimeout(async () => {
-            try {
-                await interaction.channel.delete();
-            } catch (error) {
-                console.error('خطأ أثناء حذف القناة:', error);
-            }
-        }, 3000);
+        const member = interaction.member;
+        const channel = interaction.channel;
+
+        await interaction.reply({ content: '🔒 تم إغلاق التذكرة بنجاح. سيتم سحب صلاحيات الرؤية عن العضو، و**سيتم حذف هذه القناة نهائياً تلقائياً بعد 24 ساعة (يوم كامل)**.', ephemeral: false });
+
+        try {
+            // سحب صلاحية رؤية القناة عن العضو وإبقائها للإدارة تحت نفس الكتيجوري
+            await channel.permissionOverwrites.edit(member.id, {
+                ViewChannel: false
+            });
+            
+            // تغيير اسم القناة لتصبح واضحة أنها مغلقة
+            await channel.setName(`closed-${channel.name}`).catch(() => {});
+
+            // جدول الحذف التلقائي بعد يوم كامل (24 ساعة = 86400000 ملي ثانية)
+            setTimeout(async () => {
+                try {
+                    if (channel) {
+                        await channel.delete();
+                    }
+                } catch (err) {
+                    console.error('القناة ربما تم حذفها مسبقاً:', err);
+                }
+            }, 24 * 60 * 60 * 1000);
+
+        } catch (error) {
+            console.error('خطأ أثناء معالجة إغلاق التذكرة:', error);
+        }
     }
 });
 
 client.login(process.env.TOKEN);
-
