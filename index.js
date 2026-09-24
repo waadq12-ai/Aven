@@ -18,27 +18,18 @@ const client = new Client({
     ]
 });
 
-// الأيدي الخاص بقناة إرسال قائمة التذاكر
-const TICKET_CHANNEL_ID = '1552240348280000594';
-
-// أيدي الكتيجوري (help+) المخصص لتنفتح تحته التذاكر المفتوحة والمغلقة
+// أيدي الكتيجوري (help+) المخصص لتنفتح تحته التذاكر
 const TICKET_CATEGORY_ID = '1552219561468891238';
 
-client.once('ready', async () => {
+client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+});
 
-    try {
-        const channel = await client.channels.fetch(TICKET_CHANNEL_ID);
-        if (!channel) return;
+// أمر يدوي لإرسال قائمة التذاكر بأي قناة تبغينها عن طريق كتابة !setup
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
 
-        // تنظيف الرسائل القديمة للبوت عشان ما تتكرر القائمة وتظهر الرسالة الجديدة الفخمة
-        const messages = await channel.messages.fetch({ limit: 10 });
-        const botMessages = messages.filter(m => m.author.id === client.user.id);
-        
-        for (const msg of botMessages.values()) {
-            await msg.delete().catch(() => {});
-        }
-
+    if (message.content === '!setup') {
         const embed = new EmbedBuilder()
             .setColor(0x2b2d31)
             .setTitle('🌟 | مركز الخدمة والدعم الرسمي')
@@ -88,10 +79,8 @@ client.once('ready', async () => {
                 ])
         );
 
-        await channel.send({ embeds: [embed], components: [row] });
-        console.log('✅ تم إرسال قائمة التذاكر بنجاح في القناة المحددة.');
-    } catch (error) {
-        console.error('❌ خطأ أثناء إرسال قائمة التذاكر:', error);
+        await message.channel.send({ embeds: [embed], components: [row] });
+        await message.delete().catch(() => {}); // حذف رسالة الأمر عشان تبكون القناة نظيفة
     }
 });
 
@@ -116,7 +105,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         try {
-            // إنشاء القناة باسم t-username وتحت كتيجوري help+ مباشرة
+            // إنشاء التذكرة بالاسم المطلوب وتحت ركن help+
             const ticketChannel = await guild.channels.create({
                 name: `t-${member.user.username}`,
                 type: ChannelType.GuildText,
@@ -163,27 +152,25 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: '🔒 تم إغلاق التذكرة بنجاح. سيتم سحب صلاحيات الرؤية عن العضو، و**سيتم حذف هذه القناة نهائياً تلقائياً بعد 24 ساعة (يوم كامل)**.', ephemeral: false });
 
         try {
-            // سحب صلاحية رؤية القناة عن العضو وإبقائها للإدارة تحت نفس الكتيجوري
             await channel.permissionOverwrites.edit(member.id, {
                 ViewChannel: false
             });
             
-            // تغيير اسم القناة لتصبح واضحة أنها مغلقة
             await channel.setName(`closed-${channel.name}`).catch(() => {});
 
-            // جدول الحذف التلقائي بعد يوم كامل (24 ساعة = 86400000 ملي ثانية)
+            // الحذف التلقائي بعد 24 ساعة
             setTimeout(async () => {
                 try {
                     if (channel) {
                         await channel.delete();
                     }
                 } catch (err) {
-                    console.error('القناة ربما تم حذفها مسبقاً:', err);
+                    console.error('القناة حُذفت مسبقاً:', err);
                 }
             }, 24 * 60 * 60 * 1000);
 
         } catch (error) {
-            console.error('خطأ أثناء معالجة إغلاق التذكرة:', error);
+            console.error('خطأ أثناء إغلاق التذكرة:', error);
         }
     }
 });
