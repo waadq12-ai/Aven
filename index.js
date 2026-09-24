@@ -34,26 +34,40 @@ client.once('ready', async () => {
 
         if (!existingMessage) {
             const embed = new EmbedBuilder()
-                .setTitle('نظام التذاكر')
-                .setDescription('اختر نوع التذاكر المناسب لك من القائمة أدناه لفتح تذكرة خاصة:')
-                .setColor(0x5865F2);
+                .setTitle('🎫 مركز الدعم والتذاكر')
+                .setDescription('مرحباً بك في سيرفرنا! يرجى اختيار القسم المناسب لك من القائمة أدناه لفتح تذكرة خاصة وسيتم خدمتك في أقرب وقت:')
+                .setColor(0x5865F2)
+                .setFooter({ text: 'نظام التذاكر الرسمي' })
+                .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId('ticket_select')
-                    .setPlaceholder('اختر قسم التذكرة...')
+                    .setPlaceholder('اضغط هنا لاختيار القسم المناسب...')
                     .addOptions([
                         {
                             label: 'الدعم الفني',
-                            description: 'لحل المشاكل التقنية والاستفسارات',
+                            description: 'لحل المشاكل التقنية والاستفسارات العامة',
                             value: 'support_ticket',
                             emoji: '🛠️'
                         },
                         {
-                            label: 'الشكاوى',
+                            label: 'الشكاوى والبلاغات',
                             description: 'لتقديم شكوى أو الإبلاغ عن مشكلة',
                             value: 'complaint_ticket',
                             emoji: '⚠️'
+                        },
+                        {
+                            label: 'تقديم على الإشراف',
+                            description: 'الانضمام لفريق الإدارة وطرح معلوماتك',
+                            value: 'staff_ticket',
+                            emoji: '🛡️'
+                        },
+                        {
+                            label: 'الاقتراحات والآراء',
+                            description: 'تقديم أفكار واقتراحات لتطوير السيرفر',
+                            value: 'suggestion_ticket',
+                            emoji: '💡'
                         }
                     ])
             );
@@ -73,9 +87,27 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.deferReply({ ephemeral: true });
 
+        let channelName = 't';
+        let welcomeDescription = '';
+
+        // تخصيص اسم القناة والرسالة الترحيبية لكل قسم
+        if (ticketType === 'support_ticket') {
+            channelName = `support-${member.user.username}`;
+            welcomeDescription = `أهلاً بك يا ${member} في قسم **الدعم الفني**.\nيرجى توضيح مشكلتك أو استفسارك بالتفصيل وسيقوم الفريق بمساعدتك قريباً.`;
+        } else if (ticketType === 'complaint_ticket') {
+            channelName = `complaint-${member.user.username}`;
+            welcomeDescription = `أهلاً بك يا ${member} في قسم **الشكاوى والبلاغات**.\nيرجى كتابة تفاصيل الشكوى مع إرفاق الأدلة إن وجدت، وستتم معاملتها بسرية تامة.`;
+        } else if (ticketType === 'staff_ticket') {
+            channelName = `staff-apply-${member.user.username}`;
+            welcomeDescription = `أهلاً بك يا ${member} في **تقديم الإشراف**.\nيرجى إرسال نموذج التقديم التالي:\n- العمر:\n- لماذا تريد الانضمام للإدارة؟:\n- خبرتك السابقة:`;
+        } else if (ticketType === 'suggestion_ticket') {
+            channelName = `suggestion-${member.user.username}`;
+            welcomeDescription = `أهلاً بك يا ${member} في قسم **الاقتراحات**.\nنحن نحرص على تطوير السيرفر، شاركنا باقتراحك وسنقوم بدراسته بكل سرور!`;
+        }
+
         try {
             const ticketChannel = await guild.channels.create({
-                name: `t-${member.user.username}`,
+                name: channelName,
                 type: ChannelType.GuildText,
                 permissionOverwrites: [
                     {
@@ -98,8 +130,10 @@ client.on('interactionCreate', async interaction => {
             );
 
             const welcomeEmbed = new EmbedBuilder()
-                .setTitle('تذكرة جديدة')
-                .setDescription(`مرحباً بك ${member}، تم فتح التذكرة بنجاح. سيتم خدمتك في أقرب وقت.`);
+                .setTitle('🎫 تفاصيل التذكرة')
+                .setDescription(welcomeDescription)
+                .setColor(0x5865F2)
+                .setTimestamp();
 
             await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeButton] });
             await interaction.editReply({ content: `تم إنشاء تذكرتك بنجاح: ${ticketChannel}` });
