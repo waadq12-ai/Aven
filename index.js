@@ -27,7 +27,7 @@ const TICKET_CATEGORY_ID = '1552219561468891238';
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
-    // تسجيل أمر السلاش تلقائياً أول ماشتغل البوت
+    // تسجيل أمر السلاش تلقائياً
     const commands = [
         new SlashCommandBuilder()
             .setName('setup')
@@ -48,52 +48,46 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-    // التعامل مع أمر السلاش /setup
+    // أمر السلاش /setup
     if (interaction.isChatInputCommand() && interaction.commandName === 'setup') {
-        // التأكد أن اللي يكتب الأمر إداري أو عنده صلاحية (اختياري، حالياً متاح للجميع بالروم)
         const embed = new EmbedBuilder()
             .setColor(0x2b2d31)
-            .setTitle('🌟 | مركز الخدمة والدعم الرسمي')
+            .setTitle('مركز خدمات الدعم والتذاكر الرسمية')
             .setDescription(
-                'مرحباً بك في سيرفرنا!\n\n' +
-                'حرصاً منا على راحتكم وتقديم أفضل تجربة، يرجى اختيار القسم المناسب من القائمة أدناه لفتح **تذكرة خاصة** وسيتواصل معك فريق الإدارة في أقرب وقت ممكن.\n\n' +
-                '```ansi\n\u001b[33m⚠️ ملاحظة: يرجى عدم فتح تذكرة بدون سبب حقيقي لكي لا تتعرض للعقوبة.\u001b[0m\n```'
+                'عزيزي العضو،\n' +
+                'حرصاً منا على ضمان تقديم أعلى معايير الجودة وسرعة الاستجابة لطلباتكم، يرجى تحديد القسم المختص أدناه من القائمة المنسدلة لفتح تذكرة دعم خاصة.\n\n' +
+                'نحيطكم علماً بأن كافة البيانات والمعاملات تتمتع بسرية تامة.\n\n' +
+                '---'
             )
-            .addFields(
-                { name: '🛠️ | الدعم الفني', value: 'حل المشاكل التقنية والاستفسارات العامة.', inline: true },
-                { name: '⚠️ | الشكاوى', value: 'الإبلاغ عن الأعضاء أو المشاكل.', inline: true },
-                { name: '🛡️ | تقديم الإشراف', value: 'الانضمام لفريق الإدارة.', inline: true },
-                { name: '💡 | الاقتراحات', value: 'طرح أفكار لتطوير السيرفر.', inline: true }
-            )
-            .setFooter({ text: 'نظام التذاكر المطور • جميع الحقوق محفوظة', iconURL: client.user.displayAvatarURL() })
+            .setFooter({ text: 'نظام إدارة السيرفرات الرسمي • جميع الحقوق محفوظة', iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('ticket_select')
-                .setPlaceholder('📌 اضغط هنا لاختيار القسم المطلوب...')
+                .setPlaceholder('اختر القسم المختص لفتح التذكرة...')
                 .addOptions([
                     {
                         label: 'الدعم الفني والاستفسارات',
-                        description: 'لحل أي مشكلة تقنية تواجهك',
+                        description: 'لمعالجة الأعطال التقنية والاستفسارات العامة',
                         value: 'support_ticket',
                         emoji: '🛠️'
                     },
                     {
                         label: 'الشكاوى والبلاغات',
-                        description: 'لتقديم شكوى رسمية أو بلاغ',
+                        description: 'لتقديم الشكاوى الرسمية والإبلاغ عن المخالفات',
                         value: 'complaint_ticket',
                         emoji: '⚠️'
                     },
                     {
                         label: 'تقديم على الإشراف',
-                        description: 'انضم إلينا وكن جزءاً من فريق العمل',
+                        description: 'لاستقبال طلبات الانضمام لطاقم الإدارة',
                         value: 'staff_ticket',
                         emoji: '🛡️'
                     },
                     {
-                        label: 'الاقتراحات والآراء',
-                        description: 'شاركنا برأيك لتطوير السيرفر للأفضل',
+                        label: 'الاقتراحات والتطوير',
+                        description: 'لاستقبال الأفكار والمقترحات البناءة',
                         value: 'suggestion_ticket',
                         emoji: '💡'
                     }
@@ -164,7 +158,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // التعامل مع زر إغلاق التذكرة
+    // زر إغلاق التذكرة
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
         const member = interaction.member;
         const channel = interaction.channel;
@@ -172,14 +166,13 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: '🔒 تم إغلاق التذكرة بنجاح. سيتم سحب صلاحيات الرؤية عن العضو، و**سيتم حذف هذه القناة نهائياً تلقائياً بعد 24 ساعة (يوم كامل)**.', ephemeral: false });
 
         try {
-            // سحب صلاحية الرؤية وإبقاء الروم مغلق تحت نفس الركن
             await channel.permissionOverwrites.edit(member.id, {
                 ViewChannel: false
             });
             
             await channel.setName(`closed-${channel.name}`).catch(() => {});
 
-            // الحذف التلقائي بعد 24 ساعة (يوم كامل)
+            // الحذف التلقائي بعد 24 ساعة
             setTimeout(async () => {
                 try {
                     if (channel) {
