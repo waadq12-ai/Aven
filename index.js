@@ -7,7 +7,10 @@ const {
     ChannelType, 
     PermissionFlagsBits,
     ButtonBuilder,
-    ButtonStyle 
+    ButtonStyle,
+    REST,
+    Routes,
+    SlashCommandBuilder
 } = require('discord.js');
 
 const client = new Client({
@@ -21,15 +24,33 @@ const client = new Client({
 // أيدي الكتيجوري (help+) المخصص لتنفتح تحته التذاكر
 const TICKET_CATEGORY_ID = '1552219561468891238';
 
-client.once('ready', () => {
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
+
+    // تسجيل أمر السلاش تلقائياً أول ماشتغل البوت
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('setup')
+            .setDescription('إرسال قائمة نظام التذاكر الرسمية')
+    ];
+
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+    try {
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        console.log('✅ تم تسجيل أمر السلاش (/setup) بنجاح.');
+    } catch (error) {
+        console.error('خطأ في تسجيل الأوامر:', error);
+    }
 });
 
-// أمر يدوي لإرسال قائمة التذاكر بأي قناة تبغينها عن طريق كتابة !setup
-client.on('messageCreate', async message => {
-    if (message.author.bot) return;
-
-    if (message.content === '!setup') {
+client.on('interactionCreate', async interaction => {
+    // التعامل مع أمر السلاش /setup
+    if (interaction.isChatInputCommand() && interaction.commandName === 'setup') {
+        // التأكد أن اللي يكتب الأمر إداري أو عنده صلاحية (اختياري، حالياً متاح للجميع بالروم)
         const embed = new EmbedBuilder()
             .setColor(0x2b2d31)
             .setTitle('🌟 | مركز الخدمة والدعم الرسمي')
@@ -79,12 +100,10 @@ client.on('messageCreate', async message => {
                 ])
         );
 
-        await message.channel.send({ embeds: [embed], components: [row] });
-        await message.delete().catch(() => {}); // حذف رسالة الأمر عشان تبكون القناة نظيفة
+        await interaction.reply({ embeds: [embed], components: [row] });
     }
-});
 
-client.on('interactionCreate', async interaction => {
+    // التعامل مع اختيار القائمة لفتح التذكرة
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
         const ticketType = interaction.values[0];
         const guild = interaction.guild;
@@ -105,7 +124,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         try {
-            // إنشاء التذكرة بالاسم المطلوب وتحت ركن help+
+            // إنشاء القناة باسم t-username وتحت كتيجوري help+
             const ticketChannel = await guild.channels.create({
                 name: `t-${member.user.username}`,
                 type: ChannelType.GuildText,
@@ -145,6 +164,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    // التعامل مع زر إغلاق التذكرة
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
         const member = interaction.member;
         const channel = interaction.channel;
@@ -152,13 +172,14 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: '🔒 تم إغلاق التذكرة بنجاح. سيتم سحب صلاحيات الرؤية عن العضو، و**سيتم حذف هذه القناة نهائياً تلقائياً بعد 24 ساعة (يوم كامل)**.', ephemeral: false });
 
         try {
+            // سحب صلاحية الرؤية وإبقاء الروم مغلق تحت نفس الركن
             await channel.permissionOverwrites.edit(member.id, {
                 ViewChannel: false
             });
             
             await channel.setName(`closed-${channel.name}`).catch(() => {});
 
-            // الحذف التلقائي بعد 24 ساعة
+            // الحذف التلقائي بعد 24 ساعة (يوم كامل)
             setTimeout(async () => {
                 try {
                     if (channel) {
